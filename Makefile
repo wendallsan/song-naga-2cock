@@ -2,7 +2,7 @@
 TARGET = 2cock
 
 # Sources
-CPP_SOURCES = 2cock.cpp \
+CPP_SOURCES = 2cock.cpp
 
 # Library Locations
 LIBDAISY_DIR = ../../libDaisy/

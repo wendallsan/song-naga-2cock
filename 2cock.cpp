@@ -6,14 +6,18 @@ using namespace daisysp;
 #define PIN_ADC_MUX_IN daisy::seed::A0
 #define PIN_ADC_ADSR2_DELAY_IN daisy::seed::A1
 #define MUX_CHANNELS 8
-#define PIN_MUX_SW_1 1
-#define PIN_MUX_SW_2 2
-#define PIN_MUX_SW_3 2
-#define PIN_TRIGGER 16
+#define PIN_MUX_SW_1 11
+#define PIN_MUX_SW_2 12
+#define PIN_MUX_SW_3 13
+#define PIN_TRIGGER 14
+#define SAMPLE_RATE 48000
+#define MAX_DELAY static_cast<size_t>( SAMPLE_RATE * 4.0 )
 
 DaisySeed hw;
 Adsr adsr1, adsr2;
 Switch triggerButton;
+static DelayLine<float, MAX_DELAY> DSY_SDRAM_BSS delayLine;
+
 bool buttonIsPressed = false;
 static const size_t kDacBufferSize = 48;
 static uint16_t DMA_BUFFER_MEM_SECTION dac_buffer1[ kDacBufferSize ],
@@ -32,7 +36,8 @@ float process1Result = 0.0,
     adsr2AttackValue,
     adsr2DecayValue,
     adsr2SustainValue,
-    adsr2ReleaseValue;
+    adsr2ReleaseValue, 
+    lastAdsr2DelayValue = 2.0;
 
 enum adcChannels {
 	muxSignals,
@@ -51,13 +56,18 @@ enum muxChannels {
     ADSR2_RELEASE
 };
 
-void handleDac(	uint16_t **out, size_t size ){
+void handleDac( uint16_t **out, size_t size ){
     for( size_t i = 0; i < size; i++ ){
-        // convert to 12-bit integer (0-4095)
-        process1Result = adsr1.Process( triggerButton.Pressed() );
-        process2Result = adsr2.Process( triggerButton.Pressed() );
-        out[0][i] = process1Result * 4095.0;
-        out[1][i] = process2Result * 4095.0;;
+        // WRITE ADSR2.Process() RESULT INTO DELAYLINE
+        float adsr2Signal = adsr2.Process( buttonIsPressed );
+        delayLine.Write( adsr2Signal );
+        // CONVERT TO A 12 BIT INTEGER RANGE (0 - 4095) FOR THE DAC
+        out[0][i] = adsr1.Process( buttonIsPressed ) * 4095.0;
+        // HANDLE OUT 2: READ FROM THE DELAYLINE
+        // out[1][i] = lastAdsr2DelayValue > 0.005? delayLine.Read() * 4095.0 : adsr2Signal;
+        out[1][i] = triggerButton.Pressed()? delayLine.Read() * 4095.0 : adsr2Signal;
+        // out[1][i] = adsr2.Process( triggerButton.Pressed() ) * 4095.0;
+        // out[1][i] = out[0][i];
     }
 }
 
@@ -86,12 +96,15 @@ void handleKnobs(){
     adsr2.SetSustainLevel( adsr2SustainValue );
     adsr2.SetReleaseTime( fmap( adsr2ReleaseValue, 0.0, 4.0 ) );
 
-    // TODO: HANDLE DELAY CONTROL
+    if( adsr2DelayValue != lastAdsr2DelayValue ){ // HANDLE DELAY CONTROL
+        lastAdsr2DelayValue = adsr2DelayValue;
+        float delayTime = fmap( adsr2DelayValue, 0.0, 4.0 ) * SAMPLE_RATE;
+        if( delayTime < 1.0 ) delayTime = 1.0;
+        delayLine.SetDelay( delayTime );
+    }
 }
 
-int main( void ){
-    hw.Init();
-    hw.StartLog( true );
+void initADC(){
     AdcChannelConfig adcConfig[ NUM_ADC_CHANNELS ];
     adcConfig[ muxSignals ].InitMux( 
         PIN_ADC_MUX_IN, 
@@ -103,21 +116,38 @@ int main( void ){
     adcConfig[ delaySignal ].InitSingle( PIN_ADC_ADSR2_DELAY_IN );
     hw.adc.Init( adcConfig, NUM_ADC_CHANNELS );
     hw.adc.Start();
+}
+
+void initDAC(){
     DacHandle::Config dacConfig;
-    dacConfig.target_samplerate = 48000;
+    dacConfig.target_samplerate = SAMPLE_RATE;
     dacConfig.bitdepth = DacHandle::BitDepth::BITS_12;
     dacConfig.buff_state = DacHandle::BufferState::ENABLED;
     dacConfig.mode = DacHandle::Mode::DMA;
     dacConfig.chn = DacHandle::Channel::BOTH;
     hw.dac.Init( dacConfig );
     hw.dac.Start( dac_buffer1, dac_buffer2, kDacBufferSize, handleDac );
-	triggerButton.Init( hw.GetPin( PIN_TRIGGER ), 10 );
-    adsr1.Init( dacConfig.target_samplerate );
-    adsr2.Init( dacConfig.target_samplerate );
-    while( true ){        
+}
+
+int main( void ){
+    hw.Init();
+    hw.StartLog();
+    initADC();
+    initDAC();
+    triggerButton.Init( hw.GetPin( PIN_TRIGGER ), 10 );
+    adsr1.Init( SAMPLE_RATE );
+    adsr2.Init( SAMPLE_RATE );
+    delayLine.Init();
+    int i = 0;
+    while( true ){
         triggerButton.Debounce();
-        buttonIsPressed = ( triggerButton.Pressed() && buttonIsPressed != true )? true : false;
+        buttonIsPressed = triggerButton.Pressed();
         handleKnobs();
+        i++;
+        if( i >= 500 ){
+            hw.PrintLine( FLT_FMT3, FLT_VAR3( adsr2DelayValue ) );
+            i = 0;
+        }
         System::Delay( 1 );
     }
 }
