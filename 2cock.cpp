@@ -16,7 +16,7 @@ using namespace daisysp;
 DaisySeed hw;
 Adsr adsr1, adsr2;
 Switch triggerButton;
-static DelayLine<float, MAX_DELAY> DSY_SDRAM_BSS delayLine;
+static DelayLine<bool, MAX_DELAY> DSY_SDRAM_BSS delayLine;
 
 bool buttonIsPressed = false;
 static const size_t kDacBufferSize = 48;
@@ -58,14 +58,12 @@ enum muxChannels {
 
 void handleDac( uint16_t **out, size_t size ){
     for( size_t i = 0; i < size; i++ ){
-        // WRITE ADSR2.Process() RESULT INTO DELAYLINE
-        float adsr2Signal = adsr2.Process( buttonIsPressed );
-        delayLine.Write( adsr2Signal );
+        // WRITE buttonIsPressed STATE INTO THE DELAY LINE
+        delayLine.Write( buttonIsPressed );
         // CONVERT TO A 12 BIT INTEGER RANGE (0 - 4095) FOR THE DAC
         out[0][i] = adsr1.Process( buttonIsPressed ) * 4095.0;
         // HANDLE OUT 2: READ FROM THE DELAYLINE
-        // out[1][i] = lastAdsr2DelayValue > 0.005? delayLine.Read() * 4095.0 : adsr2Signal;
-        out[1][i] = triggerButton.Pressed()? delayLine.Read() * 4095.0 : adsr2Signal;
+        out[1][i] = adsr2.Process( delayLine.Read() && buttonIsPressed ) * 4095.0;
         // out[1][i] = adsr2.Process( triggerButton.Pressed() ) * 4095.0;
         // out[1][i] = out[0][i];
     }
