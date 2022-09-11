@@ -2,22 +2,43 @@
 #include "daisysp.h"
 using namespace daisy;
 using namespace daisysp;
-
 #define PIN_ADC_MUX_IN daisy::seed::A0
 #define PIN_ADC_ADSR2_DELAY_IN daisy::seed::A1
 #define MUX_CHANNELS 8
 #define PIN_MUX_SW_1 11
 #define PIN_MUX_SW_2 12
 #define PIN_MUX_SW_3 13
-#define PIN_TRIGGER 14
+#define ADSR1_GATE_PIN 7
+#define ADSR1_TRIGGER_PIN 8
+#define ADSR2_GATE_PIN 9
+#define ADSR2_TRIGGER_PIN 10
 #define SAMPLE_RATE 48000
+#define NORMAL_MATRIX_LENGTH 10
 #define MAX_DELAY static_cast<size_t>( SAMPLE_RATE * 4.0 )
-
+#define NORMAL_MATRIX_INIT_STATE { false, false, false, false, false, false, false, false, false, false }
 DaisySeed hw;
 Adsr adsr1, adsr2;
-Switch triggerButton;
+// FOR NOW WE'LL USE THE SWITCH CLASS TO MANAGE OUR GATE AND TRIGGER INPUTS
+Switch adsr1Gate, adsr1Trigger, adsr2Gate, adsr2Trigger;
+GPIO normalSignalWriterPin;
 static DelayLine<bool, MAX_DELAY> DSY_SDRAM_BSS delayLine;
-bool buttonIsPressed = false, lastButtonIsPressed = false;
+bool adsr1GateState = false,
+    adsr1TriggerState = false,
+    adsr2GateState = false,
+    adsr2TriggerState = false,    
+    lastAdsr1GateState = false,
+    lastAdsr1TriggerState = false,
+    lastAdsr2GateState = false,
+    lastAdsr2TriggerState = false,
+    adsr1FilteredTrigger = false,
+    adsr2FilteredTrigger = false,
+    adsr1State = false,
+    adsr2State = false,
+    adsr1GateIsUnplugged = true,
+    adsr1TriggerIsUnplugged = true,
+    adsr2GateIsUnplugged = true,
+    adsr2TriggerIsUnplugged = true,
+    lastNormalSignal = false;
 static const size_t kDacBufferSize = 48;
 static uint16_t DMA_BUFFER_MEM_SECTION dac_buffer1[ kDacBufferSize ],
     dac_buffer2[ kDacBufferSize ];
@@ -37,6 +58,11 @@ float process1Result = 0.0,
     adsr2ReleaseValue, 
     lastAdsr2DelayValue = 2.0,
     delayTime = 1.0;
+bool adsr1GateNormalMatrix[ NORMAL_MATRIX_LENGTH ] = NORMAL_MATRIX_INIT_STATE,
+    adsr1TriggerNormalMatrix[ NORMAL_MATRIX_LENGTH ] = NORMAL_MATRIX_INIT_STATE,
+    adsr2GateNormalMatrix[ NORMAL_MATRIX_LENGTH ] = NORMAL_MATRIX_INIT_STATE,
+    adsr2TriggerNormalMatrix[ NORMAL_MATRIX_LENGTH ] = NORMAL_MATRIX_INIT_STATE;
+int matrixCounter = 0;
 enum adcChannels {
 	muxSignals,
     delaySignal,
@@ -52,20 +78,55 @@ enum muxChannels {
     ADSR2_SUSTAIN,
     ADSR2_RELEASE
 };
-
+void normalSignalTimerCallback( void* data ){
+    lastNormalSignal = !lastNormalSignal; // FLIPFLOP THE NORMAL SIGNAL
+    normalSignalWriterPin.Write( lastNormalSignal ); // OUTPUT THE NORMAL SIGNAL ON THE PIN
+    // UPDATE EACH INPUT'S NORMAL MATRIX TO SHOW WHETHER IT MATCHES THE NORMAL SIGNAL
+    adsr1GateNormalMatrix[ matrixCounter ] = adsr1GateState == lastNormalSignal;
+    adsr1TriggerNormalMatrix[ matrixCounter ] = adsr1TriggerState == lastNormalSignal;
+    adsr2GateNormalMatrix[ matrixCounter ] = adsr2GateState == lastNormalSignal;
+    adsr2TriggerNormalMatrix[ matrixCounter ] = adsr2TriggerState == lastNormalSignal;
+    // DECIDE WHETHER EACH INPUT IS PLUGGED IN OR NOT BASED ON ITS NORMAL MATRIX
+    // ASSUMPTION: SOCKET IS NOT PLUGGED IN IF 8 OUT OF 10 ITEMS IN THE MATRIX ARE TRUE
+    int adsr1GateNormalMatches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1GateNormalMatrix[ i ] ) adsr1GateNormalMatches++;
+    adsr1GateIsUnplugged = adsr1GateNormalMatches < 8;
+    int adsr1TriggerNormalMatches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1TriggerNormalMatrix[ i ] ) adsr1TriggerNormalMatches++;
+    adsr1TriggerIsUnplugged = adsr1TriggerNormalMatches < 8;
+    int adsr2GateNormalMatches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2GateNormalMatrix[ i ] ) adsr2GateNormalMatches++;
+    adsr2GateIsUnplugged = adsr2GateNormalMatches < 8;
+    int adsr2TriggerNormalMatches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2TriggerNormalMatrix[ i ] ) adsr2TriggerNormalMatches++;
+    adsr2TriggerIsUnplugged = adsr2TriggerNormalMatches < 8;
+    matrixCounter++; // ITERATE THE MATRIX COUNTER
+    if( matrixCounter >= NORMAL_MATRIX_LENGTH ) matrixCounter = 0;
+}
+void initNormalSignalTimer(){
+    TimerHandle timer;
+    TimerHandle::Config timerConfig;
+    timerConfig.periph = TimerHandle::Config::Peripheral::TIM_5;
+    timerConfig.enable_irq = true;
+    auto targetFrequency = 15; // RUN AT 30x PER SECOND -- THIS FREQUENCY VALUES GETS DOUBLED, SO WE USE 15
+    auto baseFrequency = System::GetPClk2Freq();
+    timerConfig.period = baseFrequency / targetFrequency;
+    timer.Init( timerConfig );
+    timer.SetCallback( normalSignalTimerCallback );
+    timer.Start();
+}
 void handleDac( uint16_t **out, size_t size ){
     for( size_t i = 0; i < size; i++ ){
-        // WRITE buttonIsPressed STATE INTO THE DELAY LINE
-        delayLine.Write( buttonIsPressed );
+        // WRITE adsr2State INTO THE DELAY LINE
+        delayLine.Write( adsr2State );
         // CONVERT TO A 12 BIT INTEGER RANGE (0 - 4095) FOR THE DAC
-        out[0][i] = adsr1.Process( buttonIsPressed ) * 4095.0;
+        out[0][i] = adsr1.Process( adsr1State ) * 4095.0;
         // HANDLE OUT 2: READ FROM THE DELAYLINE
         out[1][i] = adsr2.Process( delayLine.Read() ) * 4095.0;
     }
 }
-
 void handleKnobs(){
-    // HANDLE MUXED KNOBS
+    // HANDLE MUXED KNOBS 
     adsr1AttackValue = hw.adc.GetMuxFloat( muxSignals, ADSR1_ATTACK );
     adsr1DecayValue = hw.adc.GetMuxFloat( muxSignals, ADSR1_DECAY );
     adsr1SustainValue = hw.adc.GetMuxFloat( muxSignals, ADSR1_SUSTAIN );
@@ -118,23 +179,64 @@ void initDAC(){
     hw.dac.Init( dacConfig );
     hw.dac.Start( dac_buffer1, dac_buffer2, kDacBufferSize, handleDac );
 }
-int main( void ){
+void initTriggersAndGates(){
+    // THESE UPDATE EVERY 10 MS (THE LAST ARG IN THESE INIT CALLS)
+    adsr1Gate.Init( hw.GetPin( ADSR1_GATE_PIN ), 10 );
+    adsr1Trigger.Init( hw.GetPin( ADSR1_TRIGGER_PIN ), 10 );
+    adsr2Gate.Init( hw.GetPin( ADSR2_GATE_PIN ), 10 );
+    adsr2Trigger.Init( hw.GetPin( ADSR2_TRIGGER_PIN ), 10 );
+}
+void handleTriggersAndGates(){
+    adsr1Gate.Debounce();
+    adsr1Trigger.Debounce();
+    adsr2Gate.Debounce();
+    adsr2Trigger.Debounce();
+    adsr1GateState = adsr1Gate.Pressed();
+    adsr1TriggerState = adsr1Trigger.Pressed();
+    adsr2GateState = adsr2Gate.Pressed();
+    adsr2TriggerState = adsr2Trigger.Pressed();
+    // SET TRIGGERS AND STATES TO FALSE TO START
+    adsr1FilteredTrigger = false;
+    adsr2FilteredTrigger = false;
+    // IF SOCKETS ARE PLUGGED IN AND TRIGGER IS HIGH AND LAST TRIGGER IS LOW, SET TRIGGERS
+    if( !adsr1TriggerIsUnplugged && !adsr1GateIsUnplugged ) 
+        adsr1FilteredTrigger = adsr1TriggerState && !lastAdsr1TriggerState;
+    if( !adsr2TriggerIsUnplugged && !adsr2GateIsUnplugged )
+        adsr2FilteredTrigger = adsr2TriggerState && !lastAdsr2TriggerState;
+    // SET THE 'LAST ...' SETTINGS FOR NEXT TIME
+    lastAdsr1GateState = adsr1GateState;
+    lastAdsr1TriggerState = adsr1TriggerState;
+    lastAdsr2GateState = adsr2GateState;
+    lastAdsr2TriggerState = adsr2TriggerState;
+}
+int main(){
     hw.Init();
     initADC();
     initDAC();
-    triggerButton.Init( hw.GetPin( PIN_TRIGGER ), 10 );
+    initTriggersAndGates();
+    initNormalSignalTimer();
+    normalSignalWriterPin.Init( daisy::seed::D1, GPIO::Mode::OUTPUT );
     adsr1.Init( SAMPLE_RATE );
     adsr2.Init( SAMPLE_RATE );
     delayLine.Init();
     while( true ){
-        triggerButton.Debounce();
-        buttonIsPressed = triggerButton.Pressed();
-        if( !buttonIsPressed && lastButtonIsPressed ){
+        handleKnobs();
+        handleTriggersAndGates();
+        if( adsr1FilteredTrigger && adsr1GateState ) adsr1.Retrigger( false );
+        if( adsr2FilteredTrigger && adsr2GateState ) adsr2.Retrigger( false );
+        // SET ADSR STATE TO FALSE TO START, THEN CHECK GATE AND TRIGGER IF THEY'RE PLUGGED IN
+        adsr1State = false;
+        if( !adsr1GateIsUnplugged ) adsr1State = adsr1GateState;
+        if( !adsr1State && !adsr1TriggerIsUnplugged ) adsr1State = adsr1FilteredTrigger;
+        adsr2State = false;
+        if( !adsr2GateIsUnplugged ) adsr2State = adsr2GateState;
+        if( !adsr2State && !adsr2TriggerIsUnplugged ) adsr2State = adsr2FilteredTrigger;
+        adsr1State = adsr1GateState || adsr1TriggerState;
+        adsr2State = adsr2GateState || adsr2TriggerState;
+        if( !adsr2GateState && lastAdsr2GateState ){
             delayLine.Reset();
             delayLine.SetDelay( delayTime ); // SET THE DELAY TIME AGAIN, SINCE RESET SETS THIS
         }
-        lastButtonIsPressed = buttonIsPressed;
-        handleKnobs();
         System::Delay( 1 );
     }
 }
