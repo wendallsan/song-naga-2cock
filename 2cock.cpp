@@ -43,11 +43,7 @@ static const size_t kDacBufferSize = 48;
 static uint16_t DMA_BUFFER_MEM_SECTION dac_buffer1[ kDacBufferSize ],
     dac_buffer2[ kDacBufferSize ];
 // SET lastProcessResult TO AN INVALID VALUE SO IT REPORTS THE FIRST TIME IT CHANGES
-float process1Result = 0.0, 
-    lastProcess1Result = 2.0,
-    process2Result = 0.0,
-    lastProcess2Result = 2.0,
-    adsr1AttackValue,
+float adsr1AttackValue,
     adsr1DecayValue,
     adsr1SustainValue,
     adsr1ReleaseValue,
@@ -68,7 +64,7 @@ enum adcChannels {
     delaySignal,
 	NUM_ADC_CHANNELS
 };
-enum muxChannels {
+enum mainControlsMuxChannels {
     ADSR1_ATTACK,
     ADSR1_DECAY,
     ADSR1_SUSTAIN,
@@ -78,28 +74,47 @@ enum muxChannels {
     ADSR2_SUSTAIN,
     ADSR2_RELEASE
 };
+// TODO: ADD CV INPUTS MUX
+enum cvMuxChannels {
+    DELAY_CV,
+    ATTACK_CV,
+    DECAY_CV,
+    SUSTAIN_CV,
+    RELEASE_CV
+};
+// TODO: ADD CV ADJUST KNOBS MUX CONTROLS
+enum cvAdjustMuxChannels {
+    ADSR1_ATTACK_ADJUST,
+    ADSR1_DECAY_ADJUST,
+    ADSR1_SUSTAIN_ADJUST,
+    ADSR1_RELEASE_ADJUST,
+    ADSR2_ATTACK_ADJUST,
+    ADSR2_DECAY_ADJUST,
+    ADSR2_SUSTAIN_ADJUST,
+    ADSR2_RELEASE_ADJUST
+};
 void normalSignalTimerCallback( void* data ){
     lastNormalSignal = !lastNormalSignal; // FLIPFLOP THE NORMAL SIGNAL
     normalSignalWriterPin.Write( lastNormalSignal ); // OUTPUT THE NORMAL SIGNAL ON THE PIN
-    // UPDATE EACH INPUT'S NORMAL MATRIX TO SHOW WHETHER IT MATCHES THE NORMAL SIGNAL
+    // UPDATE EACH INPUT'S NORMAL MATRIX
     adsr1GateNormalMatrix[ matrixCounter ] = adsr1GateState == lastNormalSignal;
     adsr1TriggerNormalMatrix[ matrixCounter ] = adsr1TriggerState == lastNormalSignal;
     adsr2GateNormalMatrix[ matrixCounter ] = adsr2GateState == lastNormalSignal;
     adsr2TriggerNormalMatrix[ matrixCounter ] = adsr2TriggerState == lastNormalSignal;
     // DECIDE WHETHER EACH INPUT IS PLUGGED IN OR NOT BASED ON ITS NORMAL MATRIX
     // ASSUMPTION: SOCKET IS NOT PLUGGED IN IF 8 OUT OF 10 ITEMS IN THE MATRIX ARE TRUE
-    int adsr1GateNormalMatches = 0;
-    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1GateNormalMatrix[ i ] ) adsr1GateNormalMatches++;
-    adsr1GateIsUnplugged = adsr1GateNormalMatches < 8;
-    int adsr1TriggerNormalMatches = 0;
-    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1TriggerNormalMatrix[ i ] ) adsr1TriggerNormalMatches++;
-    adsr1TriggerIsUnplugged = adsr1TriggerNormalMatches < 8;
-    int adsr2GateNormalMatches = 0;
-    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2GateNormalMatrix[ i ] ) adsr2GateNormalMatches++;
-    adsr2GateIsUnplugged = adsr2GateNormalMatches < 8;
-    int adsr2TriggerNormalMatches = 0;
-    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2TriggerNormalMatrix[ i ] ) adsr2TriggerNormalMatches++;
-    adsr2TriggerIsUnplugged = adsr2TriggerNormalMatches < 8;
+    int matches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1GateNormalMatrix[ i ] ) matches++;
+    adsr1GateIsUnplugged = matches < 8;
+    matches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr1TriggerNormalMatrix[ i ] ) matches++;
+    adsr1TriggerIsUnplugged = matches < 8;
+    matches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2GateNormalMatrix[ i ] ) matches++;
+    adsr2GateIsUnplugged = matches < 8;
+    matches = 0;
+    for( int i = 0; i < NORMAL_MATRIX_LENGTH; i++ ) if( adsr2TriggerNormalMatrix[ i ] ) matches++;
+    adsr2TriggerIsUnplugged = matches < 8;
     matrixCounter++; // ITERATE THE MATRIX COUNTER
     if( matrixCounter >= NORMAL_MATRIX_LENGTH ) matrixCounter = 0;
 }
@@ -117,11 +132,10 @@ void initNormalSignalTimer(){
 }
 void handleDac( uint16_t **out, size_t size ){
     for( size_t i = 0; i < size; i++ ){
-        // WRITE adsr2State INTO THE DELAY LINE
-        delayLine.Write( adsr2State );
+        delayLine.Write( adsr2State ); // WRITE adsr2State INTO THE DELAY LINE
         // CONVERT TO A 12 BIT INTEGER RANGE (0 - 4095) FOR THE DAC
         out[0][i] = adsr1.Process( adsr1State ) * 4095.0;
-        // HANDLE OUT 2: READ FROM THE DELAYLINE
+        // HANDLE OUT 2: READ FROM THE DELAY LINE
         out[1][i] = adsr2.Process( delayLine.Read() ) * 4095.0;
     }
 }
@@ -137,6 +151,7 @@ void handleKnobs(){
     adsr2ReleaseValue = hw.adc.GetMuxFloat( muxSignals, ADSR2_RELEASE );
     // HANDLE THE NON-MUXED KNOB
     adsr2DelayValue = hw.adc.GetFloat( delaySignal );
+    // TODO: HANDLE THE NON-MUXED DELAY ADJUST KNOB
     // MAP TIME-RELATED VALUES TO 0 - 4 SECONDS
     adsr1.SetAttackTime( fmap( adsr1AttackValue, 0.0, 4.0 ) );
     adsr1.SetDecayTime( fmap( adsr1DecayValue, 0.0, 4.0 ) );
@@ -146,22 +161,18 @@ void handleKnobs(){
     adsr2.SetDecayTime( fmap( adsr2DecayValue, 0.0, 4.0 ) );
     adsr2.SetSustainLevel( adsr2SustainValue );
     adsr2.SetReleaseTime( fmap( adsr2ReleaseValue, 0.0, 4.0 ) );
-    if( adsr2DelayValue != lastAdsr2DelayValue ){ // HANDLE DELAY CONTROL
-        delayTime = fclamp(
-            fmap( adsr2DelayValue, 0.0, 4.0 ) * SAMPLE_RATE,
-            1.0, 
-            MAX_DELAY
-        );
-        delayLine.SetDelay( delayTime );
-        lastAdsr2DelayValue = adsr2DelayValue;
-    }
+    delayLine.SetDelay( fclamp(
+        fmap( adsr2DelayValue, 0.0, 4.0 ) * SAMPLE_RATE,
+        1.0, 
+        MAX_DELAY
+    ) );
 }
 void initADC(){
     AdcChannelConfig adcConfig[ NUM_ADC_CHANNELS ];
     adcConfig[ muxSignals ].InitMux( 
         PIN_ADC_MUX_IN, 
         MUX_CHANNELS, 
-        hw.GetPin( PIN_MUX_SW_1 ), 
+        hw.GetPin( PIN_MUX_CHANNEL_A ), 
         hw.GetPin( PIN_MUX_SW_2 ), 
         hw.GetPin( PIN_MUX_SW_3 )
     );
