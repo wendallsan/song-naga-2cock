@@ -1,6 +1,6 @@
 # Two-Headed Cockatrice  
 ### Double Deluxe Voltage Controlled Envelope Generator for Eurorack
-![Panel Concept Design](https://user-images.githubusercontent.com/1865305/185271879-ee4b27e7-6e64-477a-849c-f7a0866eb4c5.png)  
+![Panel Concept Design](https://user-images.githubusercontent.com/1865305/188250575-35beb1ac-ead3-4b48-8df2-83cc39c0516d.png)
 Panel Concept Design  
 
 ## Features  
