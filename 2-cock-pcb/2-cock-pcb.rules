@@ -1,0 +1,91 @@
+
+(rules PCB 2-cock-pcb
+  (snap_angle 
+    fortyfive_degree
+  )
+  (autoroute_settings
+    (fanout off)
+    (eu.mihosoft.freerouting.autoroute on)
+    (postroute on)
+    (vias on)
+    (via_costs 50)
+    (plane_via_costs 5)
+    (start_ripup_costs 100)
+    (start_pass_no 32)
+    (layer_rule F.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 2.1)
+    )
+    (layer_rule B.Cu
+      (active on)
+      (preferred_direction vertical)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.9)
+    )
+  )
+  (rule
+    (width 250.0)
+    (clear 200.2)
+    (clear 125.0 (type smd_to_turn_gap))
+    (clear 50.0 (type smd_smd))
+  )
+  (padstack "Via[0-1]_800:400_um"
+    (shape
+      (circle F.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle B.Cu 800.0 0.0 0.0)
+    )
+    (attach off)
+  )
+  (via 
+    "Via[0-1]_800:400_um" "Via[0-1]_800:400_um" default
+  )
+  (via 
+    "Via[0-1]_800:400_um-kicad_default" "Via[0-1]_800:400_um" "kicad_default"
+  )
+  (via_rule
+    default "Via[0-1]_800:400_um"
+  )
+  (via_rule
+    "kicad_default" "Via[0-1]_800:400_um-kicad_default"
+  )
+  (class default
+    GND +12V "-12V" "Net-(J2-PadT)" "±10V MUXED SIGNAL" "unconnected-(J4-PadTN)" "MUXED SIGNAL 1" "unconnected-(J5-PadTN)"
+    "3V3_A" "+3V3_A" "Net-(D1-Pad2)" "Net-(D2-Pad1)" "unconnected-(J7-PadTN)" "Net-(J3-PadT)" "unconnected-(J8-PadTN)" "Net-(J4-PadT)"
+    "Net-(J5-PadT)" "unconnected-(J2-PadTN)" "Net-(J7-PadT)" "Net-(J8-PadT)" "Net-(C3-Pad2)" "unconnected-(J12-PadTN)" "Net-(J11-PadT)" "unconnected-(J11-PadTN)"
+    "Net-(J12-PadT)" "Net-(Q1-Pad1)" "Net-(D3-Pad1)" "Net-(Q2-Pad1)" "Net-(D4-Pad1)" "Net-(Q3-Pad1)" "Net-(D5-Pad1)" "Net-(Q4-Pad1)"
+    "Net-(Q4-Pad3)" "Net-(J13-PadT)" "3V3_D" "Delay CV" "GATE 1" "Decay CV" "TRIGGER 1" "Sustain CV"
+    "Release CV" "-10V_REF" "GATE 2" "TRIGGER 2" "Attack 1" "Delay 2" "Decay 1" "Sustain 1"
+    "Release 1" "Attack 2" "Decay 2" "Sustain 2" "Release 2" "Attack 1 CV Adjust" "Delay 2 CV Adjust" "Decay 1 CV Adjust"
+    "Sustain 1 CV Adjust" "Release 1 CV Adjust" "Attack 2 CV Adjust" "Decay 2 CV Adjust" "Sustain 2 CV Adjust" "Release 2 CV Adjust" "unconnected-(U1-Pad2)" "unconnected-(U1-Pad3)"
+    "unconnected-(U1-Pad4)" "unconnected-(U1-Pad5)" "unconnected-(U1-Pad6)" "unconnected-(U1-Pad11)" "Net-(FB2-Pad1)" "Net-(FB3-Pad1)" "unconnected-(U1-Pad1)" "unconnected-(U1-Pad16)"
+    "unconnected-(U1-Pad17)" "unconnected-(U1-Pad18)" "unconnected-(U1-Pad19)" "MUXED SIGNAL 2" "MUXED SIGNAL 3" "unconnected-(U1-Pad27)" "unconnected-(U1-Pad28)" "ADSR1_OUT"
+    "ADSR2_OUT" "unconnected-(U1-Pad31)" "unconnected-(U1-Pad32)" "unconnected-(U1-Pad33)" "unconnected-(U1-Pad34)" "unconnected-(U1-Pad35)" "unconnected-(U1-Pad36)" "unconnected-(U1-Pad37)"
+    "Net-(J14-PadT)" "CHANNEL SELECT C" "CHANNEL SELECT B" "CHANNEL SELECT A" "Attack CV" +5V "Net-(C13-Pad1)" "Net-(C13-Pad2)"
+    "Net-(C16-Pad1)" "Net-(C16-Pad2)" "unconnected-(J13-PadTN)" "Net-(Q1-Pad3)" "unconnected-(U5-Pad2)" "unconnected-(U5-Pad4)" "unconnected-(U5-Pad5)" "Net-(Q2-Pad3)"
+    "Net-(Q5-Pad1)" "Net-(Q3-Pad3)" "Net-(Q6-Pad1)" "Net-(Q5-Pad2)" "Net-(Q7-Pad1)" "Net-(Q6-Pad2)" "OUT1_LED" "OUT2_LED"
+    "MIX_LED" "unconnected-(J14-PadTN)" "Net-(Q7-Pad2)" "Net-(R26-Pad1)" "Net-(R29-Pad1)" "Net-(R29-Pad2)" "Net-(R31-Pad1)" "Net-(R32-Pad1)"
+    "Net-(R33-Pad2)" "Net-(R36-Pad2)" "NORMAL_PROBE" "Net-(J9-PadT)"
+    (clearance_class default)
+    (via_rule default)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+  (class "kicad_default"
+    (clearance_class "kicad_default")
+    (via_rule kicad_default)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+)

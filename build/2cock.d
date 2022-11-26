@@ -98,12 +98,12 @@ build/2cock.o: 2cock.cpp \
  ../../libDaisy//src/sys/system.h ../../libDaisy//src/per/tim.h \
  ../../libDaisy//src/per/qspi.h ../../libDaisy//src/per/dac.h \
  ../../libDaisy//src/per/gpio.h ../../libDaisy//src/dev/leddriver.h \
- ../../libDaisy//src/per/i2c.h ../../libDaisy//src/dev/sdram.h \
- ../../libDaisy//src/dev/sr_4021.h ../../libDaisy//src/sys/system.h \
- ../../libDaisy//src/hid/audio.h ../../libDaisy//src/per/sai.h \
- ../../libDaisy//src/util/unique_id.h ../../libDaisy//src/per/adc.h \
- ../../libDaisy//src/per/uart.h ../../libDaisy//src/hid/midi.h \
- ../../libDaisy//src/util/ringbuffer.h \
+ ../../libDaisy//src/per/i2c.h ../../libDaisy//src/dev/mpr121.h \
+ ../../libDaisy//src/dev/sdram.h ../../libDaisy//src/dev/sr_4021.h \
+ ../../libDaisy//src/sys/system.h ../../libDaisy//src/hid/audio.h \
+ ../../libDaisy//src/per/sai.h ../../libDaisy//src/util/unique_id.h \
+ ../../libDaisy//src/per/adc.h ../../libDaisy//src/per/uart.h \
+ ../../libDaisy//src/hid/midi.h ../../libDaisy//src/util/ringbuffer.h \
  ../../libDaisy//src/hid/MidiEvent.h ../../libDaisy//src/hid/usb_midi.h \
  ../../libDaisy//src/hid/usb.h ../../libDaisy//src/hid/encoder.h \
  ../../libDaisy//src/hid/switch.h ../../libDaisy//src/hid/switch3.h \
@@ -123,10 +123,13 @@ build/2cock.o: 2cock.cpp \
  ../../libDaisy//src/sys/ffconf.h \
  ../../libDaisy//src/util/bsp_sd_diskio.h ../../libDaisy//src/hid/led.h \
  ../../libDaisy//src/hid/rgb_led.h ../../libDaisy//src/util/color.h \
- ../../libDaisy//src/dev/sr_595.h ../../libDaisy//src/dev/codec_pcm3060.h \
- ../../libDaisy//src/dev/codec_wm8731.h \
+ ../../libDaisy//src/dev/sr_595.h ../../libDaisy//src/dev/apds9960.h \
+ ../../libDaisy//src/dev/codec_pcm3060.h \
+ ../../libDaisy//src/dev/codec_wm8731.h ../../libDaisy//src/dev/dps310.h \
  ../../libDaisy//src/dev/lcd_hd44780.h ../../libDaisy//src/dev/mcp23x17.h \
- ../../libDaisy//src/dev/max11300.h \
+ ../../libDaisy//src/dev/max11300.h ../../libDaisy//src/dev/tlv493d.h \
+ ../../libDaisy//src/dev/neopixel.h ../../libDaisy//src/dev/neotrellis.h \
+ ../../libDaisy//src/dev/icm20948.h \
  ../../libDaisy//src/ui/ButtonMonitor.h \
  ../../libDaisy//src/ui/UiEventQueue.h \
  ../../libDaisy//src/ui/../util/FIFO.h \
@@ -316,6 +319,7 @@ build/2cock.o: 2cock.cpp \
 ../../libDaisy//src/per/gpio.h:
 ../../libDaisy//src/dev/leddriver.h:
 ../../libDaisy//src/per/i2c.h:
+../../libDaisy//src/dev/mpr121.h:
 ../../libDaisy//src/dev/sdram.h:
 ../../libDaisy//src/dev/sr_4021.h:
 ../../libDaisy//src/sys/system.h:
@@ -356,11 +360,17 @@ build/2cock.o: 2cock.cpp \
 ../../libDaisy//src/hid/rgb_led.h:
 ../../libDaisy//src/util/color.h:
 ../../libDaisy//src/dev/sr_595.h:
+../../libDaisy//src/dev/apds9960.h:
 ../../libDaisy//src/dev/codec_pcm3060.h:
 ../../libDaisy//src/dev/codec_wm8731.h:
+../../libDaisy//src/dev/dps310.h:
 ../../libDaisy//src/dev/lcd_hd44780.h:
 ../../libDaisy//src/dev/mcp23x17.h:
 ../../libDaisy//src/dev/max11300.h:
+../../libDaisy//src/dev/tlv493d.h:
+../../libDaisy//src/dev/neopixel.h:
+../../libDaisy//src/dev/neotrellis.h:
+../../libDaisy//src/dev/icm20948.h:
 ../../libDaisy//src/ui/ButtonMonitor.h:
 ../../libDaisy//src/ui/UiEventQueue.h:
 ../../libDaisy//src/ui/../util/FIFO.h:
